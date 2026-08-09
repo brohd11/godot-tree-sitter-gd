@@ -24,9 +24,19 @@ var parser: GDScriptTreeSitter
 var _edit: CodeEdit = null
 var _script_path := ""
 var _prev_version := -1
+var _parse_revision := 0
 
 func _init():
 	parser = GDScriptTreeSitter.new()
+
+
+## Increments every time the tree is replaced. Unlike CodeEdit.get_version() it never restarts, so it
+## is safe as a cache key across attach/detach. Consumers can also use it in place of parse_text()'s
+## return value to tell whether the tree moved - that return is consumed by whoever calls first.
+## Only tracks mutations made THROUGH this wrapper; calling parser.update_text() / open_text() /
+## apply_edit() directly bypasses it.
+func get_parse_revision() -> int:
+	return _parse_revision
 
 
 ## `script_path` is a label: it is stamped into the member data GDScriptTreeParser.parse_script()
@@ -44,6 +54,7 @@ func attach(edit: CodeEdit, script_path: String = "", prefer_code_edit := true) 
 	else:
 		parser.open_text(edit.text)
 	_prev_version = edit.get_version()
+	_parse_revision += 1
 	edit.text_changed.connect(parse_text)
 
 
@@ -61,6 +72,7 @@ func detach() -> void:
 		_edit.text_changed.disconnect(parse_text)
 	_edit = null
 	_prev_version = -1
+	_parse_revision += 1
 	parser.clear_brackets()
 
 
@@ -80,6 +92,7 @@ func parse_text() -> bool:
 	# all in C++ (the byte diff is far too slow in GDScript).
 	parser.update_text(_edit.text)
 	_prev_version = _edit.get_version()
+	_parse_revision += 1
 	return true
 
 
