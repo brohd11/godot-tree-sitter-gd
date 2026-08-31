@@ -18,7 +18,30 @@ For info on [usage](doc/usage.md)
 
 ## Installation
 
-Copy the `tree_sitter_gd/` folder from a release into your project's `addons/` directory.
+### gdaddon Install
+You can use [gdaddon](https://github.com/brohd11/gdaddon) to manage installation. 
+It is a TUI package/repo manager that can install and update addons for you.
+
+`curl -fsSL https://raw.githubusercontent.com/brohd11/gdaddon/main/install.sh | sh`
+
+Then, you can add the addon and install:
+```
+cd ~/your/project/
+gdaddon install brohd11/godot-tree-sitter-gd
+```
+### Manual Install
+
+Extract release zip into your project root. It contains a single `addons/` tree, so it
+merges into place as `addons/addon_lib/tree_sitter_gd/`:
+
+```
+your-project/
+└── addons/
+    └── addon_lib/
+        └── tree_sitter_gd/
+```
+
+Must land at `res://addons/addon_lib/tree_sitter_gd/` or Godot won't find the libraries.
 
 ### macOS: unblocking the binaries
 
@@ -27,7 +50,7 @@ flagged by Gatekeeper (`com.apple.quarantine`) and Godot will refuse to load the
 After copying the addon into your project, clear the flag once:
 
 ```bash
-xattr -dr com.apple.quarantine path/to/project/addons/tree_sitter_gd
+xattr -dr com.apple.quarantine path/to/project/addons/addon_lib/tree_sitter_gd
 ```
 
 Then reopen the project. (Windows and Linux are unaffected.)

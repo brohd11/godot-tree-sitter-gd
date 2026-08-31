@@ -13,8 +13,9 @@
 #   scons target=template_release  # release build
 #
 # The compiled library lands in bin/. Run ./package.sh to assemble a
-# distributable addon under build/tree-sitter-gd-<version>/ (the addon source
-# lives in tree_sitter_gd/), or ./build-cross.sh to build all platforms first.
+# distributable addon under build/addons/addon_lib/tree_sitter_gd/ (the addon
+# source lives in tree_sitter_gd/), or ./build-cross.sh to build all platforms
+# first.
 
 import os
 

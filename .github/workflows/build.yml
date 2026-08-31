@@ -70,8 +70,10 @@ jobs:
 
       # Uploads the packaged addon as a downloadable artifact. No release is
       # created — grab the zip from this run's Summary page and attach it to a
-      # release you author by hand. Download yields <name>.zip containing
-      # tree-sitter-gd-<version>/tree_sitter_gd/...
+      # release you author by hand. upload-artifact strips the single top-level
+      # build/ dir, so the download yields <name>.zip containing
+      # addons/addon_lib/tree_sitter_gd/... — extractable straight over a
+      # Godot project root.
       - name: Upload addon zip
         uses: actions/upload-artifact@v4
         with:
