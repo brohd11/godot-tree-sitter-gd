@@ -51,6 +51,8 @@ jobs:
     name: package addon
     runs-on: ubuntu-latest
     needs: build
+    permissions:
+      contents: write # required to create the release on a tag push
     # Runs on a v* tag, or on a manual run (handy for producing a test zip).
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     steps:
@@ -68,15 +70,28 @@ jobs:
       - name: Package
         run: ./package.sh
 
-      # Uploads the packaged addon as a downloadable artifact. No release is
-      # created — grab the zip from this run's Summary page and attach it to a
-      # release you author by hand. upload-artifact strips the single top-level
-      # build/ dir, so the download yields <name>.zip containing
-      # addons/addon_lib/tree_sitter_gd/... — extractable straight over a
-      # Godot project root.
+      # package.sh emits a directory tree (build/ mirrors a Godot project root),
+      # so zip it explicitly for the release. Zipping build/'s *contents* keeps
+      # addons/ at the top level of the archive, matching what the run artifact
+      # yields, so it still extracts straight over a Godot project root.
+      - name: Zip addon
+        run: |
+          mkdir -p dist
+          (cd build && zip -qr "../dist/tree-sitter-gd-${{ github.ref_name }}.zip" .)
+
+      # Downloadable artifact on every packaging run — including manual
+      # workflow_dispatch runs, which produce a test zip but no release.
       - name: Upload addon zip
         uses: actions/upload-artifact@v4
         with:
           name: tree-sitter-gd-${{ github.ref_name }}
           path: build/
           if-no-files-found: error
+
+      # Tag pushes additionally publish a GitHub release with the zip attached.
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          generate_release_notes: true
