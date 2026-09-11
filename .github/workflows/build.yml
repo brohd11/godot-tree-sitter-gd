@@ -1,5 +1,13 @@
 name: build
 
+# Shared GDExtension addon workflow, synced byte-identical from
+# build.template.yml in the install_scripts repo (render-gdext.sh --check gates
+# drift). Edit the template, not this copy.
+#
+# Assumes the repo convention: SConstruct at the root, godot-cpp submodule,
+# binaries land in bin/, and package.sh assembles build/ as a Godot project root.
+# Zip/artifact names come from the repo name, so no per-repo config is needed.
+
 on:
   push:
     tags: ["v*"]
@@ -57,7 +65,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
-        # submodules not needed: package.sh only copies the tree_sitter_gd/ folder
+        # submodules not needed: package.sh only copies the addon source folder
         # plus repo-root LICENSE/README + bin/
 
       - name: Collect binaries
@@ -77,14 +85,14 @@ jobs:
       - name: Zip addon
         run: |
           mkdir -p dist
-          (cd build && zip -qr "../dist/tree-sitter-gd-${{ github.ref_name }}.zip" .)
+          (cd build && zip -qr "../dist/${{ github.event.repository.name }}-${{ github.ref_name }}.zip" .)
 
-      # Downloadable artifact on every packaging run — including manual
+      # Downloadable artifact on every packaging run - including manual
       # workflow_dispatch runs, which produce a test zip but no release.
       - name: Upload addon zip
         uses: actions/upload-artifact@v4
         with:
-          name: tree-sitter-gd-${{ github.ref_name }}
+          name: ${{ github.event.repository.name }}-${{ github.ref_name }}
           path: build/
           if-no-files-found: error
 

@@ -1,24 +1,30 @@
 #!/usr/bin/env bash
-# Package the addon into build/addons/addon_lib/tree_sitter_gd/
+# Per-repo config for package.sh. The body below the marker is stamped from
+# package.template.sh in the install_scripts repo -- edit the template, not
+# the body.
+ADDON_SRC="tree_sitter_gd"
+ADDON_DEST="addons/addon_lib"
+VERSION_FILE="version.cfg"
+# ---- end config ----
+# Package the addon into build/$ADDON_DEST/$ADDON_SRC/
 #
 # build/ mirrors a Godot project root, so the zip CI makes from it extracts
-# straight over a project and merges into addons/addon_lib/tree_sitter_gd/.
+# straight over a project and merges into $ADDON_DEST/$ADDON_SRC/.
 #
-# Everything inside the tree_sitter_gd/ source folder is copied recursively, so
-# adding new .gd files (or any addon assets) there needs no change to this script.
+# Everything inside the $ADDON_SRC source folder is copied recursively, so
+# adding new files (or any addon assets) there needs no change to this script.
 # LICENSE and README live at the repo root (for GitHub) and are copied in too.
-# Compiled libraries are pulled from bin/.
+# Compiled libraries are pulled from bin/, preserving subdirectory structure so
+# macOS .framework bundles survive intact.
 #
 # Version comes from `git describe` (exact tag = clean release, -N-g<hash>
-# suffix = built past the tag); version.cfg is only a fallback and the PACKAGED
-# version.cfg gets stamped with the resolved version. A pre-existing build/ is
-# removed first.
+# suffix = built past the tag); the version file is only a fallback and the
+# PACKAGED copy gets stamped with the resolved version, the source stays
+# untouched. A pre-existing build/ is removed first.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
-
-ADDON_SRC="tree_sitter_gd"   # source folder that maps 1:1 to addons/addon_lib/tree_sitter_gd/
 
 if [[ ! -d "$ADDON_SRC" ]]; then
     echo "package.sh: addon source folder '$ADDON_SRC/' not found" >&2
@@ -31,16 +37,18 @@ if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/n
     VERSION="$(git describe --tags --always 2>/dev/null || true)"
     VERSION="${VERSION#v}"   # tags are v-prefixed, addon versions are not
 fi
-if [[ -z "$VERSION" ]]; then
-    # fallback (packaging from a tarball etc.): read from version.cfg
-    VERSION="$(sed -n 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$ADDON_SRC/version.cfg" | head -n1)"
+if [[ -z "$VERSION" && -n "$VERSION_FILE" && -f "$ADDON_SRC/$VERSION_FILE" ]]; then
+    # fallback (packaging from a tarball etc.): read from the version file
+    VERSION="$(sed -n 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$ADDON_SRC/$VERSION_FILE" | head -n1)"
 fi
 if [[ -z "$VERSION" ]]; then
-    echo "package.sh: could not determine version (git describe failed, version.cfg fallback empty)" >&2
+    echo "package.sh: could not determine version (git describe failed, version file fallback empty)" >&2
     exit 1
 fi
 
-DEST="build/addons/addon_lib/tree_sitter_gd"
+# Absolute: the bin copy below runs in a subshell cd'd into bin/, so a relative
+# DEST would silently resolve against the wrong directory there.
+DEST="$ROOT/build/$ADDON_DEST/$ADDON_SRC"
 
 # --- clean & recreate ---
 rm -rf build
@@ -50,32 +58,36 @@ mkdir -p "$DEST/bin"
 cp -R "$ADDON_SRC/." "$DEST/"
 find "$DEST" -name '.DS_Store' -delete
 
-# --- stamp the version into the packaged version.cfg (source stays untouched) ---
-sed -i.bak 's/^[[:space:]]*version[[:space:]]*=.*/version="'"$VERSION"'"/' "$DEST/version.cfg"
-rm -f "$DEST/version.cfg.bak"
+# --- stamp the version into the packaged copy (source stays untouched) ---
+if [[ -n "$VERSION_FILE" && -f "$DEST/$VERSION_FILE" ]]; then
+    sed -i.bak 's/^[[:space:]]*version[[:space:]]*=.*/version="'"$VERSION"'"/' "$DEST/$VERSION_FILE"
+    rm -f "$DEST/$VERSION_FILE.bak"
+fi
 
 # --- repo-root docs ---
 for f in LICENSE README.md; do
     if [[ -f "$f" ]]; then
         cp "$f" "$DEST/"
     else
-        echo "package.sh: warning — '$f' not found, skipping" >&2
+        echo "package.sh: warning: '$f' not found, skipping" >&2
     fi
 done
 
 # --- compiled libraries (skip cruft) ---
 if compgen -G "bin/*" > /dev/null; then
-    # Godot only loads the runtime libraries (.dylib/.so/.dll). MSVC also emits
-    # import-lib (.lib) and exports (.exp) files alongside the Windows .dll —
-    # those are link-time only and don't belong in the shipped addon.
-    find bin -type f \
+    # Godot only loads the runtime libraries (.dylib/.so/.dll, or the binary inside a
+    # .framework bundle). MSVC also emits import-lib (.lib) and exports (.exp) files
+    # alongside the Windows .dll; those are link-time only and don't belong in the
+    # shipped addon. Paths under bin/ are preserved so .framework bundles keep their
+    # required layout; flat bins are unaffected (dirname is ".").
+    (cd bin && find . -type f \
         ! -name '.DS_Store' \
         ! -name '*.os' \
         ! -name '*.exp' \
         ! -name '*.lib' \
-        -exec cp {} "$DEST/bin/" \;
+        -exec sh -c 'mkdir -p "$0/$(dirname "$1")" && cp "$1" "$0/$1"' "$DEST/bin" {} \;)
 else
-    echo "package.sh: warning — bin/ is empty; did you build first?" >&2
+    echo "package.sh: warning: bin/ is empty; did you build first?" >&2
 fi
 
-echo "Packaged tree-sitter-gd v${VERSION} -> ${DEST}"
+echo "Packaged $(basename "$ROOT") v${VERSION} -> ${DEST}"
