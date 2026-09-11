@@ -4,6 +4,7 @@ bin/
 
 # Packaging output
 build/
+dist/
 
 # SCons cache
 .sconsign.dblite

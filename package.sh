@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 # Per-repo config for package.sh. The body below the marker is stamped from
-# package.template.sh in the install_scripts repo -- edit the template, not
+# package.template.sh in the sh-templates submodule -- edit the template, not
 # the body.
 ADDON_SRC="tree_sitter_gd"
 ADDON_DEST="addons/addon_lib"
 VERSION_FILE="version.cfg"
+RELEASE_NAME="tree-sitter-gd"
 # ---- end config ----
-# Package the addon into build/$ADDON_DEST/$ADDON_SRC/
+# Stage the addon in build/$ADDON_DEST/$ADDON_SRC/, then create its release zip
+# in dist/.
 #
-# build/ mirrors a Godot project root, so the zip CI makes from it extracts
-# straight over a project and merges into $ADDON_DEST/$ADDON_SRC/.
+# build/ mirrors a Godot project root, so the zip extracts straight over a project
+# and merges into $ADDON_DEST/$ADDON_SRC/. dist/ contains the finished distributable.
 #
 # Everything inside the $ADDON_SRC source folder is copied recursively, so
 # adding new files (or any addon assets) there needs no change to this script.
@@ -20,12 +22,20 @@ VERSION_FILE="version.cfg"
 # Version comes from `git describe` (exact tag = clean release, -N-g<hash>
 # suffix = built past the tag); the version file is only a fallback and the
 # PACKAGED copy gets stamped with the resolved version, the source stays
-# untouched. A pre-existing build/ is removed first.
+# untouched. Pre-existing build/ and dist/ directories are removed first.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
+if [[ -z "${RELEASE_NAME:-}" ]]; then
+    echo "package.sh: RELEASE_NAME must be set in the config block" >&2
+    exit 1
+fi
+if ! command -v zip >/dev/null 2>&1; then
+    echo "package.sh: 'zip' not found; install it to create the release archive" >&2
+    exit 1
+fi
 if [[ ! -d "$ADDON_SRC" ]]; then
     echo "package.sh: addon source folder '$ADDON_SRC/' not found" >&2
     exit 1
@@ -51,7 +61,7 @@ fi
 DEST="$ROOT/build/$ADDON_DEST/$ADDON_SRC"
 
 # --- clean & recreate ---
-rm -rf build
+rm -rf build dist
 mkdir -p "$DEST/bin"
 
 # --- addon source (recursive: everything in the folder ships) ---
@@ -90,4 +100,9 @@ else
     echo "package.sh: warning: bin/ is empty; did you build first?" >&2
 fi
 
-echo "Packaged $(basename "$ROOT") v${VERSION} -> ${DEST}"
+# --- canonical release archive ---
+ARCHIVE="$ROOT/dist/${RELEASE_NAME}-v${VERSION}.zip"
+mkdir -p "$ROOT/dist"
+(cd "$ROOT/build" && zip -qr "$ARCHIVE" .)
+
+echo "Packaged $(basename "$ROOT") v${VERSION} -> ${ARCHIVE}"

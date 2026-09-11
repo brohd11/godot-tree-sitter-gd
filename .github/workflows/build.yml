@@ -1,12 +1,12 @@
 name: build
 
 # Shared GDExtension addon workflow, synced byte-identical from
-# build.template.yml in the install_scripts repo (render-gdext.sh --check gates
+# build.template.yml in the sh-templates submodule (render-gdext.sh --check gates
 # drift). Edit the template, not this copy.
 #
 # Assumes the repo convention: SConstruct at the root, godot-cpp submodule,
-# binaries land in bin/, and package.sh assembles build/ as a Godot project root.
-# Zip/artifact names come from the repo name, so no per-repo config is needed.
+# binaries land in bin/, and package.sh creates the configured release zip in
+# dist/ from a Godot project tree staged in build/.
 
 on:
   push:
@@ -78,22 +78,13 @@ jobs:
       - name: Package
         run: ./package.sh
 
-      # package.sh emits a directory tree (build/ mirrors a Godot project root),
-      # so zip it explicitly for the release. Zipping build/'s *contents* keeps
-      # addons/ at the top level of the archive, matching what the run artifact
-      # yields, so it still extracts straight over a Godot project root.
-      - name: Zip addon
-        run: |
-          mkdir -p dist
-          (cd build && zip -qr "../dist/${{ github.event.repository.name }}-${{ github.ref_name }}.zip" .)
-
-      # Downloadable artifact on every packaging run - including manual
-      # workflow_dispatch runs, which produce a test zip but no release.
+      # Upload the exact zip that a tag push publishes. The Actions artifact is
+      # a generic container; the file inside keeps its configured release name.
       - name: Upload addon zip
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.event.repository.name }}-${{ github.ref_name }}
-          path: build/
+          name: addon-package
+          path: dist/*.zip
           if-no-files-found: error
 
       # Tag pushes additionally publish a GitHub release with the zip attached.

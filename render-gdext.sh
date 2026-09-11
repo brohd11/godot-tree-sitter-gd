@@ -12,8 +12,8 @@
 # to render.
 #
 # Bootstrap for a new repo: commit a package.sh containing only its config block
-# (ADDON_SRC/ADDON_DEST/VERSION_FILE) and the "# ---- end config ----" marker, then
-# run this once to receive the body.
+# (ADDON_SRC/ADDON_DEST/VERSION_FILE/RELEASE_NAME) and the
+# "# ---- end config ----" marker, then run this once to receive the body.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,7 +33,7 @@ case "${1:-}" in
 esac
 
 if [[ ! -x "$RENDERER" ]]; then
-  echo "render-gdext.sh: required submodule renderer not found: $RENDERER" >&2
+  echo "$(basename "$0"): required submodule renderer not found: $RENDERER" >&2
   echo "Initialize it with: git submodule update --init sh-templates" >&2
   exit 1
 fi
