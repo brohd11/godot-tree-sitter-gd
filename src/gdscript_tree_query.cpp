@@ -352,13 +352,23 @@ Dictionary GDScriptTreeQuery::get_constants(const String &p_path, bool p_changed
         }
         else if (strcmp(t, "enum_definition") == 0) {
             String name = ts_field(child, "name", src, _src_len);
-            int    line = (int)ts_node_start_point(child).row;
-            String key  = name.is_empty() ? ("@anon_enum_" + itos(line)) : name;
-            Dictionary info;
-            info[K.keyword] = String("enum");
-            info[K.line]    = line;
-            info[K.changed] = (bool)ts_node_has_changes(child);
-            out[key] = info;
+            bool changed = ts_node_has_changes(child);
+            if (name.is_empty()) {
+                for_each_enumerator(child, src, _src_len, [&](TSNode entry, const String &entry_name) {
+                    Dictionary info;
+                    info[K.keyword] = String("const");
+                    info[K.line] = (int)ts_node_start_point(entry).row;
+                    info[K.type] = String("int");
+                    info[K.changed] = changed;
+                    out[entry_name] = info;
+                });
+            } else {
+                Dictionary info;
+                info[K.keyword] = String("enum");
+                info[K.line] = (int)ts_node_start_point(child).row;
+                info[K.changed] = changed;
+                out[name] = info;
+            }
         }
     }
     return out;

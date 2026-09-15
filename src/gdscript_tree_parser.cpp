@@ -249,12 +249,26 @@ static void collect_script(TSNode body, TSNode class_def,
             this_scope_consts[name] = info;
         } else if (strcmp(t, "enum_definition") == 0) {
             String name = ts_field(child, "name", src, src_len);
-            int line = (int)ts_node_start_point(child).row;
-            String key = name.is_empty() ? ("@anon_enum_" + itos(line)) : name;
-            Dictionary info = make_member(StringName("enum"), key, child, prefix, script_path);
-            info[K.type]         = StringName();
-            constants[key] = info;
-            this_scope_consts[key] = info;
+            if (name.is_empty()) {
+                String previous_name;
+                for_each_enumerator(child, src, src_len, [&](TSNode entry, const String &entry_name) {
+                    Dictionary info = make_member(StringName("const"), entry_name, entry, prefix, script_path);
+                    info[K.type] = StringName("int");
+                    info[K.has_static_type] = true; // Enum entries are always integers.
+                    TSNode value = ts_field_node(entry, "right");
+                    info[K.assignment] = ts_node_is_null(value)
+                            ? (previous_name.is_empty() ? String("0") : previous_name + String(" + 1"))
+                            : ts_text(value, src, src_len);
+                    constants[entry_name] = info;
+                    this_scope_consts[entry_name] = info;
+                    previous_name = entry_name;
+                });
+            } else {
+                Dictionary info = make_member(StringName("enum"), name, child, prefix, script_path);
+                info[K.type] = StringName();
+                constants[name] = info;
+                this_scope_consts[name] = info;
+            }
         } else if (strcmp(t, "class_definition") == 0) {
             String name = ts_field(child, "name", src, src_len);
             if (name.is_empty()) continue;
@@ -431,8 +445,13 @@ static void collect_symbols(TSNode body, TSNode class_def,
 
         if (strcmp(t, "enum_definition") == 0) {
             String name = ts_field(child, "name", src, src_len);
-            if (name.is_empty()) name = "@anon_enum_" + itos((int)ts_node_start_point(child).row);
-            constants.push_back(to_string_name(name));
+            if (name.is_empty()) {
+                for_each_enumerator(child, src, src_len, [&](TSNode, const String &entry_name) {
+                    constants.push_back(to_string_name(entry_name));
+                });
+            } else {
+                constants.push_back(to_string_name(name));
+            }
             continue;
         }
 

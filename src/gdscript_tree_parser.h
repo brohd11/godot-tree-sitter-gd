@@ -19,6 +19,10 @@ namespace godot {
 //        self shadows a nested same-name child (InnerClass.InnerClass → self). }
 // member_type / member_name / type / return_type / access_path / script_path are
 // StringName; positional fields are ints; assignment/default hold expression text.
+// Unnamed enum entries are individual constants with type "int" and
+// has_static_type = true. Explicit assignments retain their source text; implicit
+// assignments are "0" (first entry) or "PREVIOUS_NAME + 1" within the same enum.
+// Positions refer to each entry; named enums remain a single "enum" member.
 //
 // For granular per-path / changed_only queries, see GDScriptTreeQuery.
 //

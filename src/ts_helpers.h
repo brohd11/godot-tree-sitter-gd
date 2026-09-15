@@ -27,6 +27,22 @@ inline TSNode ts_field_node(TSNode parent, const char *fname) {
     return ts_node_child_by_field_name(parent, fname, (uint32_t)strlen(fname));
 }
 
+// Visit only actual, named enum entries, tolerating incomplete editor input.
+// The callback receives the entry node and its identifier text.
+template <typename Visitor>
+inline void for_each_enumerator(TSNode enum_node, const char *src, uint32_t src_len,
+                                Visitor visit) {
+    TSNode body = ts_field_node(enum_node, "body");
+    if (ts_node_is_null(body)) return;
+    uint32_t count = ts_node_named_child_count(body);
+    for (uint32_t i = 0; i < count; i++) {
+        TSNode entry = ts_node_named_child(body, i);
+        if (strcmp(ts_node_type(entry), "enumerator") != 0) continue;
+        String name = ts_field(entry, "left", src, src_len);
+        if (!name.is_empty()) visit(entry, name);
+    }
+}
+
 inline bool has_child_type(TSNode n, const char *type) {
     uint32_t count = ts_node_child_count(n);
     for (uint32_t i = 0; i < count; i++)

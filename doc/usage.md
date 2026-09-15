@@ -161,7 +161,10 @@ returned (requires `apply_edit` + `reparse_text` — not the all-in-one `update_
 { "keyword": "const", "line": int, "type": String, "changed": bool }   # const
 { "keyword": "enum",  "line": int,                  "changed": bool }   # enum (no type)
 ```
-Anonymous enums use a generated key: `"@anon_enum_<line>"`.
+Unnamed enums expose each entry by name as `keyword: "const"`, `type: "int"`.
+Each entry has its own source line; `changed` and `changed_only` use the enclosing
+enum declaration's change flag. Named enums remain a single `keyword: "enum"` entry.
+The former `"@anon_enum_<line>"` placeholder keys are no longer returned.
 
 **`get_inner_classes()`** — keyed by name:
 ```
@@ -206,3 +209,15 @@ The exact dictionary shapes are documented in the class header
 (`src/gdscript_tree_parser.h`). The companion helper
 `gdscript_code_edit_tree_parser.gd` swaps the parser into the bundled wrapper above and
 adds a `parse()` convenience method.
+
+Unnamed enum entries appear individually in `parse_script()`'s `constants` dictionary
+as `member_type: "const"`, `type: "int"`, and `has_static_type: true`, with each entry's
+position and its declaring class's access path. They propagate into inner classes
+like ordinary constants. `sparse_parse()` lists their names in the declaring scope's
+constants array. Named enums keep their existing representation in both outputs.
+
+Assignments remain expression strings: explicit values preserve source text, the
+first implicit entry is `"0"`, and later implicit entries are `"PREVIOUS_NAME + 1"`.
+Each enum starts a new sequence, so `enum { A, B }` and `enum { C, D }` produce
+assignments `"0"`, `"A + 1"`, `"0"`, and `"C + 1"`, respectively. No expressions are
+evaluated by the parser.
