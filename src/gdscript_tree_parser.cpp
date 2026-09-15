@@ -1,6 +1,7 @@
 #include "gdscript_tree_parser.h"
 #include "ts_helpers.h"
 #include "gd_keys.h"
+#include "ts_lambdas.h"
 #include <godot_cpp/core/class_db.hpp>
 #include <tree_sitter/api.h>
 #include <cstring>
@@ -116,15 +117,9 @@ static Dictionary parse_lambda_info(TSNode lambda, const char *src, uint32_t src
     info[K.line_index]  = (int)ts_node_start_point(lambda).row;
     info[K.end_line]    = (int)ts_node_end_point(lambda).row;
     info[K.locals]      = locals;
+    info[K.lambdas] = collect_scope_lambdas(body_node, src, src_len, true, false, locals,
+        [&](TSNode child) { return parse_lambda_info(child, src, src_len, access_path, script_path); });
     return info;
-}
-
-static void maybe_attach_lambda(TSNode var_node, Dictionary &info,
-                                    const char *src, uint32_t src_len,
-                                    const String &access_path, const String &script_path) {
-    TSNode val = ts_field_node(var_node, "value");
-    if (!ts_node_is_null(val) && strcmp(ts_node_type(val), "lambda") == 0)
-        info[Keys::get().lambda] = parse_lambda_info(val, src, src_len, access_path, script_path);
 }
 
 static void collect_locals(TSNode node, const char *src, uint32_t src_len,
@@ -152,7 +147,6 @@ static void collect_locals(TSNode node, const char *src, uint32_t src_len,
             info[K.type]            = to_string_name(type);
             info[K.has_static_type] = has_static;
             info[K.assignment]      = ts_node_is_null(val_node) ? String() : ts_text(val_node, src, src_len);
-            maybe_attach_lambda(node, info, src, src_len, access_path, script_path);
             locals[name + String("-") + itos(line_idx) + String("-") + itos(col_idx)] = info;
         }
     } else if (strcmp(t, "for_statement") == 0) {
@@ -317,7 +311,6 @@ static void collect_script(TSNode body, TSNode class_def,
             info[K.type]            = to_string_name(type);
             info[K.has_static_type] = has_static;
             info[K.assignment]      = ts_node_is_null(val_node) ? String() : ts_text(val_node, src, src_len);
-            maybe_attach_lambda(child, info, src, src_len, prefix, script_path);
             members[name] = info;
             continue;
         }
@@ -350,6 +343,8 @@ static void collect_script(TSNode body, TSNode class_def,
             info[K.end_line]     = (int)ts_node_end_point(child).row;
             info[K.args]         = parse_params(ts_field_node(child, "parameters"), src, src_len, prefix, script_path);
             info[K.locals]       = locals;
+            info[K.lambdas] = collect_scope_lambdas(body_node, src, src_len, true, false, locals,
+                [&](TSNode node) { return parse_lambda_info(node, src, src_len, prefix, script_path); });
             members[name] = info;
             continue;
         }
@@ -368,6 +363,8 @@ static void collect_script(TSNode body, TSNode class_def,
         }
     }
 
+    scope[K.lambdas] = collect_scope_lambdas(body, src, src_len, false, false, members,
+        [&](TSNode node) { return parse_lambda_info(node, src, src_len, prefix, script_path); });
     scope[K.members]       = members;
     scope[K.constants]     = constants;
     scope[K.inner_classes] = accessible;

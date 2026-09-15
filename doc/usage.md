@@ -120,6 +120,7 @@ returned (requires `apply_edit` + `reparse_text` — not the all-in-one `update_
 | `get_classes() -> Dictionary` | One entry per reachable class scope, keyed by access path. |
 | `get_extends(path: String) -> String` | Parent class for the given path (`""` for root). |
 | `get_members(path, changed_only = false) -> Dictionary` | Variables, functions, signals, and `class_name` for the given path. |
+| `get_lambdas(path, changed_only = false) -> Dictionary` | Immediate class-owned lambdas, including callbacks in initializers and accessors. |
 | `get_constants(path, changed_only = false) -> Dictionary` | `const` and `enum` declarations. |
 | `get_inner_classes(path, changed_only = false) -> Dictionary` | Direct inner `class` definitions. |
 
@@ -171,10 +172,34 @@ The former `"@anon_enum_<line>"` placeholder keys are no longer returned.
 { "line": int, "extends": String, "changed": bool }
 ```
 
-**Lambda shape** (recursive — appears in `var`/`local` entries whose value is a lambda):
+**Lambda shape** (recursive — also retained in assigned `var`/`local` entries):
 ```
-{ "args": {…}, "return_type": String, "line": int, "end_line": int, "locals": {…} }
+{ "args": {…}, "return_type": String, "line": int, "end_line": int,
+  "column_index": int, "end_column": int, "owner_variable": String,
+  "locals": {…}, "lambdas": {…}, "changed": bool }
 ```
+
+Functions returned by `get_members()` include a `lambdas` dictionary. Each collection
+contains only its immediate closures; inner lambdas belong to their enclosing lambda.
+`get_lambdas()` returns class-owned closures, excluding functions and inner classes.
+Neither synthetic lambda names nor their locals are added to ordinary member/local lists.
+
+Assigned closures use the class variable name or the local key `name-line-column`.
+Unassigned closures use `inline_lambda_<line>_<column>`. Positions are zero-based;
+columns are UTF-8 byte offsets, and end positions are exclusive. Generated names gain
+`_1`, `_2`, etc. when needed to avoid assigned-name collisions. Names identify source
+positions within one snapshot, not persistent identities across edits.
+`owner_variable` contains the assigned key, or `""` for inline callbacks.
+
+`get_lambdas(path, true)` filters by each lambda node's change flag. Returned closures
+include their complete nested collections. Like other queries, it returns an empty
+dictionary for an unknown path or an edited tree awaiting reparse.
+
+`parse_script()` exposes the same hierarchy, with class `lambdas` alongside `members`,
+and uses its existing `line_index` and rich argument/local metadata instead of query
+fields. It does not include `changed`. Consumers should prefer unified `lambdas`
+collections when present and only read legacy `var.lambda` payloads when a collection
+is absent, to avoid creating the same closure twice.
 
 ---
 

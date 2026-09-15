@@ -1,6 +1,7 @@
 #include "gdscript_tree_query.h"
 #include "ts_helpers.h"
 #include "gd_keys.h"
+#include "ts_lambdas.h"
 #include <godot_cpp/core/class_db.hpp>
 #include <tree_sitter/api.h>
 #include <cstring>
@@ -88,14 +89,9 @@ static Dictionary parse_lambda_info(TSNode lambda, const char *src, uint32_t src
     info[K.line]        = (int)ts_node_start_point(lambda).row;
     info[K.end_line]    = (int)ts_node_end_point(lambda).row;
     info[K.locals]      = locals;
+    info[K.lambdas] = collect_scope_lambdas(body_node, src, src_len, true, true, locals,
+        [&](TSNode child) { return parse_lambda_info(child, src, src_len); });
     return info;
-}
-
-static void maybe_attach_lambda(TSNode var_node, Dictionary &info,
-                                 const char *src, uint32_t src_len) {
-    TSNode val = ts_field_node(var_node, "value");
-    if (!ts_node_is_null(val) && strcmp(ts_node_type(val), "lambda") == 0)
-        info[Keys::get().lambda] = parse_lambda_info(val, src, src_len);
 }
 
 // Recursively collect local variable_statements inside a function / lambda body.
@@ -118,8 +114,8 @@ static void collect_locals(TSNode node, const char *src, uint32_t src_len,
             Dictionary info;
             info[K.keyword] = ts_node_is_null(sf) ? String("var") : String("static var");
             info[K.line]    = (int)ts_node_start_point(node).row;
+            info[K.column_index] = (int)ts_node_start_point(node).column;
             info[K.type]    = ts_field(node, "type", src, src_len);
-            maybe_attach_lambda(node, info, src, src_len);
             locals[name] = info;
         }
     }
@@ -219,6 +215,7 @@ void GDScriptTreeQuery::_bind_methods() {
     ClassDB::bind_method(D_METHOD("get_classes"),               &GDScriptTreeQuery::get_classes);
     ClassDB::bind_method(D_METHOD("get_extends", "path"),       &GDScriptTreeQuery::get_extends);
     ClassDB::bind_method(D_METHOD("get_members",       "path", "changed_only"), &GDScriptTreeQuery::get_members,       DEFVAL(false));
+    ClassDB::bind_method(D_METHOD("get_lambdas", "path", "changed_only"), &GDScriptTreeQuery::get_lambdas, DEFVAL(false));
     ClassDB::bind_method(D_METHOD("get_constants",     "path", "changed_only"), &GDScriptTreeQuery::get_constants,     DEFVAL(false));
     ClassDB::bind_method(D_METHOD("get_inner_classes", "path", "changed_only"), &GDScriptTreeQuery::get_inner_classes, DEFVAL(false));
 }
@@ -277,7 +274,6 @@ Dictionary GDScriptTreeQuery::get_members(const String &p_path, bool p_changed_o
             info[K.line]    = (int)ts_node_start_point(child).row;
             info[K.type]    = ts_field(child, "type", src, _src_len);
             info[K.changed] = (bool)ts_node_has_changes(child);
-            maybe_attach_lambda(child, info, src, _src_len);
             out[name] = info;
         }
         else if (strcmp(t, "signal_statement") == 0) {
@@ -311,6 +307,8 @@ Dictionary GDScriptTreeQuery::get_members(const String &p_path, bool p_changed_o
             info[K.return_type] = ts_field(child, "return_type", src, _src_len);
             info[K.args]        = parse_params(ts_field_node(child, "parameters"), src, _src_len);
             info[K.locals]      = locals;
+            info[K.lambdas] = collect_scope_lambdas(body_node, src, _src_len, true, true, locals,
+                [&](TSNode node) { return parse_lambda_info(node, src, _src_len); });
             info[K.changed]     = (bool)ts_node_has_changes(child);
             out[name] = info;
         }
@@ -323,6 +321,18 @@ Dictionary GDScriptTreeQuery::get_members(const String &p_path, bool p_changed_o
             out[K.class_name_marker] = info;
         }
     }
+    collect_scope_lambdas(body, src, _src_len, false, true, out,
+        [&](TSNode node) { return parse_lambda_info(node, src, _src_len); }, false, true);
+    return out;
+}
+
+Dictionary GDScriptTreeQuery::get_lambdas(const String &p_path, bool p_changed_only) {
+    Dictionary variables;
+    if (_edited || !_tree) return variables;
+    TSNode body = find_class_body(ts_tree_root_node(_tree), p_path, _src.get_data(), _src_len);
+    if (ts_node_is_null(body)) return variables;
+    Dictionary out = collect_scope_lambdas(body, _src.get_data(), _src_len, false, true, variables,
+        [&](TSNode node) { return parse_lambda_info(node, _src.get_data(), _src_len); }, p_changed_only);
     return out;
 }
 

@@ -32,6 +32,9 @@ struct Keys {
     StringName return_type     = "return_type";
     StringName locals          = "locals";
     StringName lambda          = "lambda";
+    StringName lambdas         = "lambdas";
+    StringName end_column      = "end_column";
+    StringName owner_variable  = "owner_variable";
     StringName members         = "members";
     StringName constants       = "constants";
     StringName functions       = "functions";

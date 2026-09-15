@@ -12,7 +12,7 @@ namespace godot {
 // All methods accept an access path: "" for the file root, "Inner" for a top-level
 // inner class, "Outer.Inner" for a nested one. get_classes() lists all valid paths.
 //
-// The three query methods accept an optional changed_only: bool = false.
+// Member, lambda, constant and inner-class queries accept changed_only: bool = false.
 // When true, only entries whose tree node was touched by the last incremental
 // reparse are returned (requires apply_edit + reparse_text, not just reparse_text).
 //
@@ -22,6 +22,9 @@ namespace godot {
 //                            "locals": { name  → { "keyword","line","type"[,"lambda"] } }
 //                          vars whose value is a lambda also: "lambda": { same shape as func } } }
 // get_constants(){ name: { "keyword", "line", "type", "changed" } }
+// get_lambdas() returns immediate class closures; functions and closures have a
+// "lambdas" dictionary of their own. Assigned var.lambda payloads remain available.
+// Lambda positions include column_index/end_column (UTF-8 bytes, exclusive end).
 // get_inner_classes() { name: { "line", "extends", "changed" } }
 
 class GDScriptTreeQuery : public GDScriptTreeSitter {
@@ -34,6 +37,7 @@ public:
     Dictionary get_classes();
     String     get_extends(const String &p_path);
     Dictionary get_members(const String &p_path, bool p_changed_only = false);
+    Dictionary get_lambdas(const String &p_path, bool p_changed_only = false);
     Dictionary get_constants(const String &p_path, bool p_changed_only = false);
     Dictionary get_inner_classes(const String &p_path, bool p_changed_only = false);
 };

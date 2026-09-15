@@ -12,6 +12,7 @@ namespace godot {
 //   { "member_type":"class", "member_name", "access_path", "script_path",
 //     "class_name", "extends", "line_index", "column_index", "end_line",
 //     "members":       { name → member info },
+//     "lambdas":       { key → immediate lambda info },
 //     "constants":     { name → const/enum info (inherited consts included) },
 //     "inner_classes": { name → stub } — every class referenceable by name from
 //        this scope: inherited ancestors + siblings + own children + self
@@ -23,6 +24,9 @@ namespace godot {
 // has_static_type = true. Explicit assignments retain their source text; implicit
 // assignments are "0" (first entry) or "PREVIOUS_NAME + 1" within the same enum.
 // Positions refer to each entry; named enums remain a single "enum" member.
+// Functions and lambdas also contain immediate "lambdas" dictionaries. Assigned
+// closures retain var.lambda compatibility payloads. Lambda column_index/end_column
+// are UTF-8 byte offsets, with exclusive ends; owner_variable is empty for inlines.
 //
 // For granular per-path / changed_only queries, see GDScriptTreeQuery.
 //
