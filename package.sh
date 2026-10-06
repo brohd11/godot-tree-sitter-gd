@@ -3,7 +3,7 @@
 # package.template.sh in the sh-templates submodule -- edit the template, not
 # the body.
 ADDON_SRC="tree_sitter_gd"
-ADDON_DEST="addons/addon_lib"
+ADDON_DEST="addons/_lib"
 VERSION_FILE="version.cfg"
 RELEASE_NAME="tree-sitter-gd"
 # ---- end config ----
